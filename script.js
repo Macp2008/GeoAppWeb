@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const matchedPointsList = document.getElementById('matchedPointsList');
 
     // 2. Configuración de la API de Google Geocoding
-    // ¡¡¡PEGAR TU CLAVE DE API DE GOOGLE REAL AQUÍ!!!
+    // ¡¡¡TU CLAVE DE API DE GOOGLE REAL ESTÁ AQUÍ!!!
     const GOOGLE_GEOCODING_API_KEY = "AIzaSyDpPUWJNLYYRNGEgPuYcTuxE4aJrJnEOLQ"; 
     const GOOGLE_GEOCODING_URL = "https://maps.googleapis.com/maps/api/geocode/json";
 
@@ -24,7 +24,6 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('points.json'); // Intenta cargar desde el mismo directorio
             if (!response.ok) {
-                // Si la respuesta no es OK (ej. 404 Not Found), lanza un error
                 throw new Error(`Error HTTP al cargar points.json: ${response.status}`);
             }
             referencePoints = await response.json();
@@ -87,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Extraer las coordenadas y la dirección formateada
             const location = data.results[0].geometry.location;
             const lat = location.lat;
-            const lng = location.lng; // ¡CORRECCIÓN: 'lng' es correcto!
+            const lng = location.lng;
             const formattedAddress = data.results[0].formatted_address;
 
             // Mostrar coordenadas y dirección formateada en la UI
@@ -106,6 +105,16 @@ document.addEventListener('DOMContentLoaded', () => {
             for (const point of referencePoints) {
                 const distance = haversineDistance(lat, lng, point.latitude, point.longitude);
                 
+                // --- LÍNEAS DE DEPURACIÓN AÑADIDAS ---
+                console.log(`--- Iniciando comparación para punto con ID: ${point.id} ---`);
+                console.log(`  Coordenadas del punto de referencia: Lat=${point.latitude}, Lng=${point.longitude}`);
+                console.log(`  Radio del punto de referencia: ${point.radius} metros`);
+                console.log(`  Coordenadas buscadas (de Google): Lat=${lat.toFixed(6)}, Lng=${lng.toFixed(6)}`);
+                console.log(`  Distancia calculada (Haversine): ${distance.toFixed(2)} metros`);
+                console.log(`  ¿Distancia (${distance.toFixed(2)}m) <= Radio (${point.radius}m)? ${distance <= point.radius}`);
+                console.log(`----------------------------------------------------------------`);
+                // ------------------------------------
+
                 if (distance <= point.radius) {
                     isWithinAnyRadius = true;
                     matched.push({
