@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geo-Comparador de Ubicaciones</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Buscador de Direcciones y Proximidad</h1>
+        <div class="input-section">
+            <input type="text" id="addressInput" placeholder="Ej: Terminal del Sur, Medellín, Antioquia">
+            <button id="searchButton">Buscar Coordenadas</button>
+        </div>
+        
+        <div id="loadingIndicator" class="hidden">Cargando...</div>
+
+        <div id="results">
+            <h2>Resultados:</h2>
+            <p><strong>Dirección Formateada:</strong> <span id="formattedAddress"></span></p>
+            <p><strong>Latitud Geocodificada:</strong> <span id="latitude"></span></p>
+            <p><strong>Longitud Geocodificada:</strong> <span id="longitude"></span></p>
+            <p><strong>¿Coincide con un Área de Interés?:</strong> <span id="isWithinRadius"></span></p>
+            
+            <h3>Puntos Coincidentes:</h3>
+            <ul id="matchedPointsList">
+                <li>Ningún punto de referencia coincide aún.</li>
+            </ul>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
