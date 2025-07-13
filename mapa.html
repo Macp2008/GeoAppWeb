@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Puntos de Referencia en Mapa</title>
+    <style>
+        /* Estilo básico para el mapa */
+        #map {
+            height: 800px; /* Altura del mapa */
+            width: 100%; /* Ancho del mapa */
+        }
+    </style>
+</head>
+<body>
+    <h1>Tus Puntos de Referencia en el Mapa</h1>
+    <div id="map"></div>
+
+    <script>
+        // TU CLAVE API DE GOOGLE MAPS DIRECTAMENTE INCLUIDA
+        const Maps_API_KEY = "AIzaSyDpPUWJNLYYRNGEgPuYcTuxE4aJrJnEOLQ"; 
+
+        let map; // Variable global para el mapa
+
+        // Función que se llama cuando la API de Google Maps se ha cargado
+        function initMap() {
+            // Coordenadas para centrar el mapa (Medellín, Colombia)
+            const medellin = { lat: 6.244203, lng: -75.581216 }; 
+
+            map = new google.maps.Map(document.getElementById("map"), {
+                zoom: 11, // Nivel de zoom inicial (ajusta según necesites)
+                center: medellin,
+            });
+
+            loadAndDisplayReferencePoints();
+        }
+
+        // Función para cargar los puntos y mostrarlos en el mapa
+        async function loadAndDisplayReferencePoints() {
+            try {
+                const response = await fetch('points.json');
+                if (!response.ok) {
+                    throw new Error(`Error HTTP al cargar points.json: ${response.status}`);
+                }
+                const referencePoints = await response.json();
+                console.log(`Cargados ${referencePoints.length} puntos de referencia para el mapa.`);
+
+                referencePoints.forEach(point => {
+                    const center = { lat: point.latitude, lng: point.longitude };
+
+                    // Añadir un marcador para el centro del punto
+                    new google.maps.Marker({
+                        position: center,
+                        map: map,
+                        title: `ID: ${point.id}`,
+                    });
+
+                    // Añadir un círculo para representar el radio
+                    new google.maps.Circle({
+                        strokeColor: "#FF0000", // Color del borde del círculo
+                        strokeOpacity: 0.8,
+                        strokeWeight: 2,
+                        fillColor: "#FF0000", // Color de relleno del círculo
+                        fillOpacity: 0.35,
+                        map: map,
+                        center: center,
+                        radius: point.radius, // El radio del círculo en metros
+                    });
+                });
+
+            } catch (error) {
+                console.error("Error al cargar o mostrar los puntos de referencia en el mapa:", error);
+                alert("No se pudieron cargar o mostrar los puntos de referencia en el mapa. Revisa la consola.");
+            }
+        }
+    </script>
+
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDpPUWJNLYYRNGEgPuYcTuxE4aJrJnEOLQ&callback=initMap"></script>
+</body>
+</html>
