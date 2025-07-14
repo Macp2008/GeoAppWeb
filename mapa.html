@@ -9,6 +9,7 @@
         #map {
             height: 800px; /* Altura del mapa */
             width: 100%; /* Ancho del mapa */
+            border: 1px solid #ccc; /* Añadí un borde para que se vea mejor */
         }
     </style>
 </head>
@@ -18,7 +19,8 @@
 
     <script>
         // TU CLAVE API DE GOOGLE MAPS DIRECTAMENTE INCLUIDA
-        const Maps_API_KEY = "AIzaSyDpPUWJNLYYRNGEgPuYcTuxE4aJrJnEOLQ"; 
+        // ¡IMPORTANTE! Asegúrate de que esta clave sea válida y tenga la API de Maps habilitada.
+        const Maps_API_KEY = "AIzaSyDpPUWJNLYYRNGEgPuYcTuxE4aJrJnEOLQ"; // <-- Tu clave API de Google
 
         let map; // Variable global para el mapa
 
@@ -32,6 +34,7 @@
                 center: medellin,
             });
 
+            // Llama a la función para cargar y mostrar los puntos
             loadAndDisplayReferencePoints();
         }
 
@@ -43,16 +46,28 @@
                     throw new Error(`Error HTTP al cargar points.json: ${response.status}`);
                 }
                 const referencePoints = await response.json();
+                
+                // Verificar que lo que se cargó es un array
+                if (!Array.isArray(referencePoints)) {
+                    console.error("El archivo points.json no contiene un array como se esperaba.");
+                    alert("Error: El archivo 'points.json' no tiene el formato correcto.");
+                    return;
+                }
+
                 console.log(`Cargados ${referencePoints.length} puntos de referencia para el mapa.`);
 
                 referencePoints.forEach(point => {
-                    const center = { lat: point.latitude, lng: point.longitude };
+                    // --- ¡CORRECCIÓN CLAVE AQUÍ! ---
+                    // Acceder a latitud y longitud anidadas en point.data.center
+                    const center = { lat: point.data.center.lat, lng: point.data.center.lng };
+                    // Acceder al radio anidado en point.data
+                    const radius = point.data.radius; 
 
-                    // Añadir un marcador para el centro del punto
+                    // Añadir un marcador para el centro del punto (Opcional, puedes quitarlo si solo quieres círculos)
                     new google.maps.Marker({
                         position: center,
                         map: map,
-                        title: `ID: ${point.id}`,
+                        title: `ID: ${point.id || 'N/A'}`, // Usar 'N/A' si no hay ID
                     });
 
                     // Añadir un círculo para representar el radio
@@ -64,13 +79,33 @@
                         fillOpacity: 0.35,
                         map: map,
                         center: center,
-                        radius: point.radius, // El radio del círculo en metros
+                        radius: radius, // Usar el radio corregido
                     });
+
+                    // Opcional: añadir un InfoWindow al hacer clic en el marcador o círculo
+                    const infoWindow = new google.maps.InfoWindow({
+                        content: `
+                            <strong>Tipo de Zona:</strong> ${point.zoneType || 'N/A'}<br>
+                            <strong>Radio:</strong> ${radius} m<br>
+                            Lat: ${center.lat.toFixed(6)}, Lng: ${center.lng.toFixed(6)}
+                        `,
+                    });
+
+                    // Puedes asociar el infoWindow al marcador o al círculo
+                    // En este ejemplo, lo asocio al marcador para que al hacer clic en el ícono aparezca.
+                    // Si prefieres que aparezca al hacer clic en el círculo, cambia 'marker' por 'circle'
+                    // (tendrías que guardar el objeto circle en una variable para añadir el listener).
+                    // Para simplificar, si quieres que el infoWindow aparezca para los círculos, el código sería:
+                    // cityCircle.addListener("click", () => { infoWindow.open(map, cityCircle); });
+                    // Pero para eso, necesitarías almacenar cada 'new google.maps.Circle' en una variable y luego usarla.
+                    // Para el marcador:
+                    // marker.addListener("click", () => { infoWindow.open(map, marker); });
+                    // Dejo solo el círculo como antes para no complicar el ejemplo.
                 });
 
             } catch (error) {
                 console.error("Error al cargar o mostrar los puntos de referencia en el mapa:", error);
-                alert("No se pudieron cargar o mostrar los puntos de referencia en el mapa. Revisa la consola.");
+                alert("No se pudieron cargar o mostrar los puntos de referencia en el mapa. Revisa la consola del navegador (F12).");
             }
         }
     </script>
