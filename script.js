@@ -1,3 +1,45 @@
+// =====================================================================================
+// SCRIPT.JS COMPLETO Y UNIFICADO
+// Incluye:
+// 1. Inicialización y visualización del mapa de Google Maps.
+// 2. Carga y dibujo de puntos de referencia (círculos y marcadores) desde points.json.
+// 3. Funcionalidad de geocodificación para direcciones ingresadas por el usuario.
+// 4. Marcador y centrado del mapa en la dirección geocodificada.
+// 5. Comparación de la dirección geocodificada con los puntos de referencia.
+// 6. Lógica para procesar una dirección recibida a través de parámetros de URL (para MacroDroid).
+// 7. Salida JSON simple en un div oculto cuando la dirección viene de la URL.
+// =====================================================================================
+
+// Variables globales para el mapa y los elementos que dibujaremos
+let map;
+let referenceCircles = []; // Almacena los objetos Circle de Google Maps (para puntos de referencia)
+let currentMarker = null; // Almacena el objeto Marker de Google Maps (para la dirección buscada)
+
+// =====================================================================================
+// FUNCIÓN DE INICIALIZACIÓN DEL MAPA (LLAMADA POR GOOGLE MAPS API)
+// Esta función es llamada automáticamente por el script de la API de Google Maps
+// cuando se ha cargado completamente (ver el <script> tag en tu index.html con callback=initMap).
+// DEBE ESTAR FUERA DE document.addEventListener('DOMContentLoaded').
+// =====================================================================================
+function initMap() {
+    // Coordenadas iniciales del mapa (ej. Medellín, Colombia). Ajusta a tu preferencia.
+    const initialLocation = { lat: 6.2442, lng: -75.5812 }; 
+    
+    // Inicializa el mapa en el div con id="map"
+    map = new google.maps.Map(document.getElementById("map"), {
+        zoom: 12, // Nivel de zoom inicial
+        center: initialLocation, // Centro inicial del mapa
+    });
+
+    // Una vez que el mapa está listo, cargamos y mostramos los puntos de referencia
+    // Esta función también maneja la carga del JSON y luego llama a displayReferencePointsOnMap.
+    loadReferencePointsAndDisplayOnMap();
+}
+
+// =====================================================================================
+// FUNCIÓN PRINCIPAL AL CARGAR EL CONTENIDO DEL DOM
+// Todo el código que interactúa con el HTML y los listeners va aquí.
+// =====================================================================================
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Obtener referencias a los elementos HTML
     const addressInput = document.getElementById('addressInput');
@@ -8,42 +50,105 @@ document.addEventListener('DOMContentLoaded', () => {
     const longitudeSpan = document.getElementById('longitude');
     const isWithinRadiusSpan = document.getElementById('isWithinRadius');
     const matchedPointsList = document.getElementById('matchedPointsList');
+    const macroDroidOutputDiv = document.getElementById('macroDroidOutput'); // Referencia al div para MacroDroid
 
     // 2. Configuración de la API de Google Geocoding
-    // ¡¡¡TU CLAVE DE API DE GOOGLE REAL ESTÁ AQUÍ!!!
-    const GOOGLE_GEOCODING_API_KEY = "AIzaSyDpPUWJNLYYRNGEgPuYcTuxE4aJrJnEOLQ"; // <-- Asegúrate de que esta clave sea válida y segura para el entorno donde la uses.
+    // ¡¡¡RECUERDA QUE TU CLAVE DE API DE GOOGLE REAL DEBE IR AQUÍ!!!
+    // Asegúrate de que esta clave tenga habilitadas la "Maps JavaScript API" y la "Geocoding API".
+    const GOOGLE_GEOCODING_API_KEY = "TU_CLAVE_API_DE_GOOGLE"; // <-- ¡IMPORTANTE! Reemplaza con tu clave real.
     const GOOGLE_GEOCODING_URL = "https://maps.googleapis.com/maps/api/geocode/json";
 
-    // 3. Variable para almacenar los puntos de referencia
+    // 3. Variable para almacenar los puntos de referencia (se llenará desde points.json)
     let referencePoints = [];
 
-    // --- Funciones Auxiliares ---
+    // =====================================================================================
+    // LÓGICA PARA MACRODROID (PROCESAR DIRECCIÓN DESDE LA URL)
+    // =====================================================================================
+    const urlParams = new URLSearchParams(window.location.search);
+    const addressFromUrl = urlParams.get('address');
+
+    if (addressFromUrl) {
+        // Si hay una dirección en el parámetro 'address' de la URL,
+        // la ponemos en el input y ejecutamos la búsqueda automáticamente.
+        addressInput.value = decodeURIComponent(addressFromUrl); // Decodificar por si tiene caracteres especiales
+        geocodeAndCompare(addressFromUrl); // Llamar a la función de geocodificación con esta dirección
+    }
+
+    // =====================================================================================
+    // FUNCIONES AUXILIARES
+    // =====================================================================================
 
     // Función para cargar los puntos de referencia desde points.json
-    async function loadReferencePoints() {
+    // y, una vez cargados, mostrarlos en el mapa.
+    async function loadReferencePointsAndDisplayOnMap() {
         try {
-            const response = await fetch('points.json'); // Intenta cargar desde el mismo directorio
+            const response = await fetch('points.json'); // Carga desde el mismo directorio
             if (!response.ok) {
-                // Si la respuesta no es OK (ej. 404 Not Found), lanzamos un error.
                 throw new Error(`Error HTTP al cargar points.json: ${response.status} - ${response.statusText}`);
             }
-            // Asumimos que points.json contiene directamente el array de puntos.
             referencePoints = await response.json(); 
             
-            // --- CAMBIO CLAVE AQUÍ: Ajuste para el log de puntos cargados ---
-            // Verificamos si referencePoints es un array y si tiene una longitud.
             if (Array.isArray(referencePoints)) {
                 console.log(`Cargados ${referencePoints.length} puntos de referencia.`);
+                // Llama a la función para dibujar los puntos en el mapa
+                displayReferencePointsOnMap(); 
             } else {
-                console.error("El archivo points.json no devolvió un array como se esperaba.");
-                referencePoints = []; // Aseguramos que sea un array vacío para evitar errores posteriores.
+                console.error("El archivo points.json no devolvió un array como se esperaba. Estructura incorrecta.");
+                referencePoints = []; // Aseguramos que sea un array vacío para evitar errores.
             }
 
         } catch (error) {
             console.error("Error al cargar los puntos de referencia:", error);
             alert("No se pudieron cargar los puntos de referencia. Asegúrate de que 'points.json' esté en la misma carpeta y sea un JSON válido con la estructura esperada (un array de objetos).");
-            referencePoints = []; // Aseguramos que sea un array vacío para evitar errores.
+            referencePoints = [];
         }
+    }
+
+    // Función para dibujar los puntos de referencia (círculos y marcadores) en el mapa.
+    function displayReferencePointsOnMap() {
+        // Limpiar círculos anteriores para evitar duplicados si la función se llama de nuevo
+        referenceCircles.forEach(circle => circle.setMap(null));
+        referenceCircles = []; // Vaciar el array de círculos guardados
+
+        // Verificar que el mapa esté inicializado antes de intentar dibujar
+        if (!map) {
+            console.warn("El objeto 'map' aún no ha sido inicializado. No se pueden dibujar los puntos de referencia.");
+            return;
+        }
+
+        referencePoints.forEach(point => {
+            // Accedemos a las coordenadas y radio anidados en 'data' y 'data.center'
+            const center = { lat: point.data.center.lat, lng: point.data.center.lng };
+            const radius = point.data.radius;
+
+            // Crear un círculo para cada punto de referencia
+            const cityCircle = new google.maps.Circle({
+                strokeColor: "#FF0000", // Color del borde (rojo)
+                strokeOpacity: 0.8,      // Opacidad del borde
+                strokeWeight: 2,         // Grosor del borde
+                fillColor: "#FF0000",    // Color de relleno (rojo)
+                fillOpacity: 0.35,       // Opacidad de relleno
+                map: map,                // El mapa donde se dibujará
+                center: center,          // Centro del círculo
+                radius: radius,          // Radio del círculo en metros
+            });
+            referenceCircles.push(cityCircle); // Guardar el objeto Circle para poder gestionarlo después
+
+            // Opcional: Añadir un InfoWindow (ventana emergente de información) al hacer clic en el círculo
+            const infoWindow = new google.maps.InfoWindow({
+                content: `
+                    <strong>ID:</strong> ${point.id || 'N/A'}<br>
+                    <strong>Tipo:</strong> ${point.zoneType || 'N/A'}<br>
+                    <strong>Radio:</strong> ${radius} m<br>
+                    Lat: ${center.lat.toFixed(6)}, Lng: ${center.lng.toFixed(6)}
+                `,
+            });
+            // Al hacer clic en el círculo, muestra el InfoWindow
+            cityCircle.addListener("click", () => {
+                infoWindow.open(map, cityCircle);
+            });
+        });
+        console.log(`Dibujados ${referencePoints.length} círculos de referencia en el mapa.`);
     }
 
     // Función para calcular la distancia entre dos puntos (Fórmula de Haversine)
@@ -60,51 +165,77 @@ document.addEventListener('DOMContentLoaded', () => {
         return distance; // Distancia en metros
     }
 
-    // --- Función Principal: Geocodificar y Comparar ---
+    // =====================================================================================
+    // FUNCIÓN PRINCIPAL: GEOCODIFICAR Y COMPARAR (también maneja la visualización en mapa)
+    // Acepta un argumento 'addressToSearch' para usarlo directamente,
+    // o toma el valor del input si no se proporciona el argumento.
+    // =====================================================================================
+    async function geocodeAndCompare(addressToSearch = null) {
+        // Usa la dirección del argumento si está disponible, de lo contrario, usa la del input
+        const address = addressToSearch || addressInput.value.trim(); 
 
-    async function geocodeAndCompare() {
-        const address = addressInput.value.trim(); // Obtener la dirección y limpiar espacios
-
-        // 4. Validar la entrada
         if (!address) {
             alert("Por favor, introduce una dirección para buscar.");
             return;
         }
 
-        // 5. Limpiar resultados anteriores y mostrar indicador de carga
+        // Limpiar resultados anteriores y mostrar indicador de carga
         formattedAddressSpan.textContent = "Cargando...";
         latitudeSpan.textContent = "";
         longitudeSpan.textContent = "";
         isWithinRadiusSpan.textContent = "";
-        matchedPointsList.innerHTML = "<li>Buscando coincidencias...</li>"; // Reiniciar la lista
-        loadingIndicator.classList.remove('hidden'); // Mostrar indicador
+        matchedPointsList.innerHTML = "<li>Buscando coincidencias...</li>";
+        loadingIndicator.classList.remove('hidden');
 
-        // Construir la URL de la API de Geocodificación
+        // Construir la URL de la API de Geocodificación de Google
         const geocodeUrl = `${GOOGLE_GEOCODING_URL}?address=${encodeURIComponent(address)}&key=${GOOGLE_GEOCODING_API_KEY}`;
 
         try {
-            // Realizar la solicitud a la API de Google
             const response = await fetch(geocodeUrl);
             const data = await response.json();
 
-            // Manejar errores de la API de Google
+            // Manejar errores de la API de Google Geocoding
             if (data.status !== 'OK') {
                 alert(`Error al geocodificar la dirección: ${data.status} - ${data.error_message || 'Error desconocido'}`);
                 formattedAddressSpan.textContent = "Error";
-                loadingIndicator.classList.add('hidden'); // Ocultar indicador
+                loadingIndicator.classList.add('hidden');
+                // Si viene de URL y hay error, podemos limpiar la salida de MacroDroid
+                if (addressToSearch) { // Si la llamada vino por URL (MacroDroid)
+                    macroDroidOutputDiv.textContent = JSON.stringify({ error: true, message: data.status });
+                }
                 return;
             }
 
-            // Extraer las coordenadas y la dirección formateada
+            // Extraer las coordenadas y la dirección formateada del resultado de la geocodificación
             const location = data.results[0].geometry.location;
             const lat = location.lat;
             const lng = location.lng;
             const formattedAddress = data.results[0].formatted_address;
 
-            // Mostrar coordenadas y dirección formateada en la UI
+            // Mostrar coordenadas y dirección formateada en la interfaz de usuario
             formattedAddressSpan.textContent = formattedAddress;
-            latitudeSpan.textContent = lat.toFixed(6); // Limitar decimales para mayor legibilidad
-            longitudeSpan.textContent = lng.toFixed(6); // Limitar decimales para mayor legibilidad
+            latitudeSpan.textContent = lat.toFixed(6);
+            longitudeSpan.textContent = lng.toFixed(6);
+
+            // --- MOSTRAR MARCADOR DE LA DIRECCIÓN BUSCADA EN EL MAPA ---
+            if (map) { // Solo si el mapa está inicializado
+                if (currentMarker) {
+                    currentMarker.setMap(null); // Eliminar el marcador anterior si existe
+                }
+                currentMarker = new google.maps.Marker({
+                    position: { lat: lat, lng: lng }, // Coordenadas de la dirección buscada
+                    map: map,                      // El mapa donde se dibujará
+                    title: formattedAddress,       // Título al pasar el ratón
+                    icon: { // Puedes personalizar el icono si lo deseas
+                        url: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png" // Icono de punto azul de Google
+                    }
+                });
+                map.setCenter({ lat: lat, lng: lng }); // Centrar el mapa en la dirección buscada
+                map.setZoom(14); // Ajustar el zoom para una vista cercana
+            } else {
+                console.warn("Mapa no inicializado, no se pudo mostrar el marcador de la dirección buscada.");
+            }
+
 
             // 6. Comparar con los puntos de referencia
             let isWithinAnyRadius = false;
@@ -112,43 +243,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (referencePoints.length === 0) {
                 console.warn("No se cargaron puntos de referencia para comparar.");
-                // Mostrar un mensaje en la UI si no hay puntos cargados
                 matchedPointsList.innerHTML = "<li>No hay puntos de referencia cargados para comparar.</li>";
             } else {
                 for (const point of referencePoints) {
-                    // --- CAMBIO CLAVE AQUÍ: Acceso correcto a latitud, longitud y radio ---
-                    // Tus puntos tienen la estructura { zoneType, shapeType, data: { center: { lat, lng }, radius } }
+                    // Acceder a las propiedades correctas del punto anidadas en 'data'
                     const pointLat = point.data.center.lat;
                     const pointLng = point.data.center.lng;
-                    const pointRadius = point.data.radius; // El radio también está anidado
+                    const pointRadius = point.data.radius;
 
                     const distance = haversineDistance(lat, lng, pointLat, pointLng);
                     
-                    // --- LÍNEAS DE DEPURACIÓN AÑADIDAS ---
-                    // Usa un ID si existe, o un valor por defecto si no para el log
-                    console.log(`--- Iniciando comparación para punto (ID si existe): ${point.id || 'N/A'} ---`); 
-                    console.log(`  Coordenadas del punto de referencia: Lat=${pointLat}, Lng=${pointLng}`);
-                    console.log(`  Radio del punto de referencia: ${pointRadius} metros`);
-                    console.log(`  Coordenadas buscadas (de Google): Lat=${lat.toFixed(6)}, Lng=${lng.toFixed(6)}`);
-                    console.log(`  Distancia calculada (Haversine): ${distance.toFixed(2)} metros`);
-                    console.log(`  ¿Distancia (${distance.toFixed(2)}m) <= Radio (${pointRadius}m)? ${distance <= pointRadius}`);
-                    console.log(`----------------------------------------------------------------`);
-                    // ------------------------------------
+                    // console.log para depuración, puedes comentar estas líneas si no las necesitas en producción
+                    console.log(`--- Comparando con punto (ID: ${point.id || 'N/A'}) ---`);
+                    console.log(`  Punto Ref: Lat=${pointLat}, Lng=${pointLng}, Radio=${pointRadius}m`);
+                    console.log(`  Dirección: Lat=${lat.toFixed(6)}, Lng=${lng.toFixed(6)}`);
+                    console.log(`  Distancia: ${distance.toFixed(2)}m`);
+                    console.log(`  ¿Dentro?: ${distance <= pointRadius}`);
+                    console.log(`--------------------------------------------------`);
 
                     if (distance <= pointRadius) {
                         isWithinAnyRadius = true;
                         matched.push({
-                            id: point.id || 'N/A', // Usará 'N/A' si la propiedad 'id' no está definida en tu JSON de punto
+                            id: point.id || 'N/A', // Usará 'N/A' si la propiedad 'id' no está definida
                             distance: Math.round(distance), // Distancia redondeada a metros
                             radius: pointRadius
                         });
                     }
                 }
 
-                // Mostrar el resultado de la coincidencia
+                // Mostrar el resultado de la coincidencia en la UI
                 isWithinRadiusSpan.textContent = isWithinAnyRadius ? "Sí" : "No";
 
-                // Mostrar los puntos coincidentes en la lista
+                // Mostrar los puntos coincidentes en la lista de la UI
                 matchedPointsList.innerHTML = ''; // Limpiar la lista anterior
                 if (matched.length > 0) {
                     matched.forEach(match => {
@@ -163,6 +289,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } // Fin del else (si referencePoints.length > 0)
 
+            // =====================================================================================
+            // SALIDA PARA MACRODROID (si la dirección vino de la URL)
+            // Esto coloca un JSON en un div oculto para que MacroDroid pueda leerlo.
+            // =====================================================================================
+            if (addressToSearch) { // Solo genera la salida JSON si la dirección fue pasada como argumento (desde URL)
+                const outputForMacroDroid = {
+                    isWithinRadius: isWithinAnyRadius,
+                    matchedPointsCount: matched.length,
+                    matchedPointIds: matched.map(p => p.id) // Opcional: lista de IDs de puntos coincidentes
+                };
+                // Escribir el JSON stringificado en el div oculto
+                macroDroidOutputDiv.textContent = JSON.stringify(outputForMacroDroid);
+                console.log("MacroDroid Output:", outputForMacroDroid); // También se imprime en la consola para depuración
+            }
+
         } catch (error) {
             console.error("Error en la solicitud o el procesamiento:", error);
             alert("Ocurrió un error inesperado. Revisa la consola del navegador para más detalles.");
@@ -171,16 +312,30 @@ document.addEventListener('DOMContentLoaded', () => {
             longitudeSpan.textContent = "N/A";
             isWithinRadiusSpan.textContent = "N/A";
             matchedPointsList.innerHTML = "<li>Error al buscar coincidencias.</li>";
+            // Manejo de error para MacroDroid si la dirección vino de la URL
+            if (addressToSearch) {
+                macroDroidOutputDiv.textContent = JSON.stringify({ error: true, message: error.message });
+            }
         } finally {
-            loadingIndicator.classList.add('hidden'); // Ocultar indicador al finalizar
+            loadingIndicator.classList.add('hidden'); // Ocultar el indicador de carga al finalizar
         }
     }
 
-    // --- Event Listeners y Carga Inicial ---
+    // =====================================================================================
+    // EVENT LISTENERS
+    // =====================================================================================
 
-    // Asignar la función al clic del botón
-    searchButton.addEventListener('click', geocodeAndCompare);
+    // Asignar la función geocodeAndCompare al clic del botón 'Buscar y Comparar'
+    // Cuando el botón se presiona, llama a geocodeAndCompare sin argumentos,
+    // y la función tomará el valor del addressInput.
+    searchButton.addEventListener('click', () => geocodeAndCompare());
 
-    // Cargar los puntos de referencia cuando la página se carga por completo
-    loadReferencePoints(); // Esta función ahora espera que points.json sea directamente un array de objetos.
+    // NOTA IMPORTANTE: La función loadReferencePointsAndDisplayOnMap()
+    // NO se llama directamente aquí dentro de DOMContentLoaded.
+    // Se llama desde initMap(), que es activada por el script de la API de Google Maps
+    // cuando la página se carga y el mapa está listo.
 });
+
+// =====================================================================================
+// FIN DEL SCRIPT
+// =====================================================================================
