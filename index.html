@@ -3,33 +3,105 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Geo-Comparador de Ubicaciones</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Verificador de Puntos de Referencia</title>
+    <style>
+        /* Estilos básicos para la interfaz */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        input[type="text"] {
+            width: calc(100% - 100px);
+            padding: 8px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            padding: 8px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .results p {
+            margin: 5px 0;
+        }
+        .hidden {
+            display: none;
+        }
+        #loadingIndicator {
+            color: #007bff;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        #matchedPointsList {
+            list-style-type: disc;
+            margin-left: 20px;
+            padding-left: 0;
+        }
+        hr {
+            border: 0;
+            border-top: 1px solid #eee;
+            margin: 30px 0;
+        }
+
+        /* Estilos específicos para el mapa */
+        #map {
+            height: 600px; /* Altura del mapa. Ajusta según tus necesidades. */
+            width: 100%;
+            border: 1px solid #ccc;
+            margin-top: 20px;
+            border-radius: 8px;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
-        <h1>Buscador de Direcciones y Proximidad</h1>
-        <div class="input-section">
-            <input type="text" id="addressInput" placeholder="Ej: Terminal del Sur, Medellín, Antioquia">
-            <button id="searchButton">Buscar Coordenadas</button>
+        <h1>Verificador de Puntos de Referencia</h1>
+
+        <div>
+            <label for="addressInput">Dirección:</label>
+            <input type="text" id="addressInput" placeholder="Ej: Carrera 80 # 32-24, Medellín">
+            <button id="searchButton">Buscar y Comparar</button>
         </div>
-        
+
         <div id="loadingIndicator" class="hidden">Cargando...</div>
 
-        <div id="results">
-            <h2>Resultados:</h2>
+        <div class="results">
             <p><strong>Dirección Formateada:</strong> <span id="formattedAddress"></span></p>
-            <p><strong>Latitud Geocodificada:</strong> <span id="latitude"></span></p>
-            <p><strong>Longitud Geocodificada:</strong> <span id="longitude"></span></p>
-            <p><strong>¿Coincide con un Área de Interés?:</strong> <span id="isWithinRadius"></span></p>
-            
+            <p><strong>Latitud:</strong> <span id="latitude"></span></p>
+            <p><strong>Longitud:</strong> <span id="longitude"></span></p>
+            <p><strong>¿Dentro del Radio de algún punto?:</strong> <span id="isWithinRadius"></span></p>
             <h3>Puntos Coincidentes:</h3>
             <ul id="matchedPointsList">
-                <li>Ningún punto de referencia coincide aún.</li>
+                <li>Sin coincidencias</li>
             </ul>
         </div>
-    </div>
 
-    <script src="script.js"></script>
+        <hr>
+
+        <h2>Mapa de Puntos</h2>
+        <div id="map"></div> </div>
+
+    <div id="macroDroidOutput" style="display: none;"></div> 
+
+    <script src="script.js"></script> 
+    
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=TU_CLAVE_API_DE_GOOGLE&callback=initMap"></script>
 </body>
 </html>
