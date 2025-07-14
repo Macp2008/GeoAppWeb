@@ -1,5 +1,5 @@
 // =====================================================================================
-// SCRIPT.JS COMPLETO Y UNIFICADO (con clave API insertada)
+// SCRIPT.JS COMPLETO Y UNIFICADO (con clave API y logs de depuración)
 // =====================================================================================
 
 // Variables globales para el mapa y los datos
@@ -126,6 +126,10 @@ async function geocodeAndCompare(addressToSearch = null) {
 
     if (!address) {
         alert("Por favor, introduce una dirección para buscar.");
+        console.warn("Función geocodeAndCompare llamada sin dirección."); // LOG DE DEPURACIÓN
+        if (addressToSearch) {
+             macroDroidOutputDiv.textContent = JSON.stringify({ error: true, message: "No address provided." });
+        }
         return;
     }
 
@@ -136,6 +140,7 @@ async function geocodeAndCompare(addressToSearch = null) {
     matchedPointsList.innerHTML = "<li>Buscando coincidencias...</li>";
     loadingIndicator.classList.remove('hidden');
 
+    console.log(`Iniciando geocodificación para: ${address}`); // LOG DE DEPURACIÓN
     const geocodeUrl = `${GOOGLE_GEOCODING_URL}?address=${encodeURIComponent(address)}&key=${GOOGLE_GEOCODING_API_KEY}`;
 
     try {
@@ -143,6 +148,7 @@ async function geocodeAndCompare(addressToSearch = null) {
         const data = await response.json();
 
         if (data.status !== 'OK') {
+            console.error(`Error al geocodificar la dirección: ${data.status} - ${data.error_message || 'Error desconocido'}`); // LOG DE DEPURACIÓN
             alert(`Error al geocodificar la dirección: ${data.status} - ${data.error_message || 'Error desconocido'}`);
             formattedAddressSpan.textContent = "Error";
             if (addressToSearch) { 
@@ -160,6 +166,8 @@ async function geocodeAndCompare(addressToSearch = null) {
         latitudeSpan.textContent = lat.toFixed(6);
         longitudeSpan.textContent = lng.toFixed(6);
 
+        console.log(`Dirección geocodificada: Lat=${lat.toFixed(6)}, Lng=${lng.toFixed(6)}`); // LOG DE DEPURACIÓN
+
         // Mostrar marcador de la dirección buscada en el mapa
         if (map) {
             if (currentMarker) {
@@ -169,10 +177,13 @@ async function geocodeAndCompare(addressToSearch = null) {
                 position: { lat: lat, lng: lng },
                 map: map,
                 title: formattedAddress,
-                icon: { url: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png" } // Icono de punto azul
+                icon: { url: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png" } // Icono de punto azul más fiable
             });
             map.setCenter({ lat: lat, lng: lng });
             map.setZoom(14);
+            console.log("Marcador de dirección añadido al mapa."); // LOG DE DEPURACIÓN
+        } else {
+            console.warn("Mapa no inicializado, no se puede añadir marcador."); // LOG DE DEPURACIÓN
         }
 
         // Comparar con los puntos de referencia
@@ -181,6 +192,7 @@ async function geocodeAndCompare(addressToSearch = null) {
 
         if (referencePoints.length === 0) {
             matchedPointsList.innerHTML = "<li>No hay puntos de referencia cargados para comparar.</li>";
+            console.warn("No hay puntos de referencia cargados para comparación."); // LOG DE DEPURACIÓN
         } else {
             for (const point of referencePoints) {
                 const pointLat = point.data.center.lat;
@@ -208,26 +220,35 @@ async function geocodeAndCompare(addressToSearch = null) {
                     listItem.textContent = `ID: ${match.id}, Distancia: ${match.distance} m (Radio: ${match.radius} m)`;
                     matchedPointsList.appendChild(listItem);
                 });
+                console.log(`Coincidencias encontradas: ${matched.length}`); // LOG DE DEPURACIÓN
             } else {
                 const listItem = document.createElement('li');
                 listItem.textContent = "Ningún punto de referencia coincide.";
                 matchedPointsList.appendChild(listItem);
+                console.log("No se encontraron coincidencias."); // LOG DE DEPURACIÓN
             }
         }
 
         // SALIDA PARA MACRODROID (JSON en el div oculto)
-        if (addressToSearch) { // Solo genera la salida JSON si la dirección fue pasada como argumento (desde URL)
+        // Solo genera la salida JSON si la dirección fue pasada como argumento (desde URL)
+        if (addressToSearch) { 
             const outputForMacroDroid = {
                 isWithinRadius: isWithinAnyRadius,
                 matchedPointsCount: matched.length,
-                matchedPointIds: matched.map(p => p.id)
+                matchedPointIds: matched.map(p => p.id),
+                formattedAddress: formattedAddress, // Añadido para depuración en MacroDroid
+                latitude: lat.toFixed(6), // Añadido para depuración
+                longitude: lng.toFixed(6) // Añadido para depuración
             };
             macroDroidOutputDiv.textContent = JSON.stringify(outputForMacroDroid);
-            console.log("MacroDroid Output:", outputForMacroDroid);
+            console.log("MacroDroid Output (JSON en div oculto):", outputForMacroDroid); // LOG DE DEPURACIÓN
+        } else {
+            console.log("No es una solicitud de MacroDroid, no se genera JSON en div oculto."); // LOG DE DEPURACIÓN
         }
 
+
     } catch (error) {
-        console.error("Error en la solicitud o el procesamiento:", error);
+        console.error("Error en la solicitud o el procesamiento:", error); // LOG DE DEPURACIÓN
         alert("Ocurrió un error inesperado. Revisa la consola del navegador para más detalles.");
         formattedAddressSpan.textContent = "Error";
         latitudeSpan.textContent = "N/A";
@@ -239,6 +260,7 @@ async function geocodeAndCompare(addressToSearch = null) {
         }
     } finally {
         loadingIndicator.classList.add('hidden');
+        console.log("Proceso geocodificación finalizado."); // LOG DE DEPURACIÓN
     }
 }
 
@@ -252,13 +274,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Lógica para MacroDroid: procesar dirección si viene en la URL
     const urlParams = new URLSearchParams(window.location.search);
+    console.log("URL de la página:", window.location.href); // LOG DE DEPURACIÓN
     const addressFromUrl = urlParams.get('address');
+    console.log("Valor de 'addressFromUrl' (desde URL):", addressFromUrl); // LOG DE DEPURACIÓN
 
     if (addressFromUrl) {
+        console.log("Se detectó 'addressFromUrl'. Procediendo a geocodificar..."); // LOG DE DEPURACIÓN
         addressInput.value = decodeURIComponent(addressFromUrl);
-        geocodeAndCompare(addressFromUrl); 
+        // Retraso opcional para dar tiempo a la API de Google Maps a inicializarse completamente
+        // Esto puede ser útil si la geocodificación falla antes de que el mapa esté listo
+        setTimeout(() => {
+            geocodeAndCompare(addressFromUrl);
+        }, 500); // Espera 500 milisegundos (0.5 segundos)
+
+    } else {
+        console.log("No se detectó 'address' en la URL. Esperando entrada manual."); // LOG DE DEPURACIÓN
     }
 
     // Event listener para el botón de búsqueda manual
-    searchButton.addEventListener('click', () => geocodeAndCompare());
+    searchButton.addEventListener('click', () => {
+        console.log("Botón 'Buscar y Comparar' clickeado."); // LOG DE DEPURACIÓN
+        geocodeAndCompare();
+    });
 });
