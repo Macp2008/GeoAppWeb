@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 2. Configuración de la API de Google Geocoding
     // ¡¡¡TU CLAVE DE API DE GOOGLE REAL ESTÁ AQUÍ!!!
-    const GOOGLE_GEOCODING_API_KEY = "AIzaSyDpPUWJNLYYRNGEgPuYcTuxE4aJrJnEOLQ"; 
+    const GOOGLE_GEOCODING_API_KEY = "AIzaSyDpPUWJNLYYRNGEgPuYcTuxE4aJrJnEOLQ"; // <-- Asegúrate de que esta clave sea válida y segura para el entorno donde la uses.
     const GOOGLE_GEOCODING_URL = "https://maps.googleapis.com/maps/api/geocode/json";
 
     // 3. Variable para almacenar los puntos de referencia
@@ -24,13 +24,25 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('points.json'); // Intenta cargar desde el mismo directorio
             if (!response.ok) {
-                throw new Error(`Error HTTP al cargar points.json: ${response.status}`);
+                // Si la respuesta no es OK (ej. 404 Not Found), lanzamos un error.
+                throw new Error(`Error HTTP al cargar points.json: ${response.status} - ${response.statusText}`);
             }
-            referencePoints = await response.json();
-            console.log(`Cargados ${referencePoints.length} puntos de referencia.`);
+            // Asumimos que points.json contiene directamente el array de puntos.
+            referencePoints = await response.json(); 
+            
+            // --- CAMBIO CLAVE AQUÍ: Ajuste para el log de puntos cargados ---
+            // Verificamos si referencePoints es un array y si tiene una longitud.
+            if (Array.isArray(referencePoints)) {
+                console.log(`Cargados ${referencePoints.length} puntos de referencia.`);
+            } else {
+                console.error("El archivo points.json no devolvió un array como se esperaba.");
+                referencePoints = []; // Aseguramos que sea un array vacío para evitar errores posteriores.
+            }
+
         } catch (error) {
             console.error("Error al cargar los puntos de referencia:", error);
-            alert("No se pudieron cargar los puntos de referencia. Asegúrate de que 'points.json' esté en la misma carpeta y sea válido.");
+            alert("No se pudieron cargar los puntos de referencia. Asegúrate de que 'points.json' esté en la misma carpeta y sea un JSON válido con la estructura esperada (un array de objetos).");
+            referencePoints = []; // Aseguramos que sea un array vacío para evitar errores.
         }
     }
 
@@ -100,47 +112,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (referencePoints.length === 0) {
                 console.warn("No se cargaron puntos de referencia para comparar.");
-            }
-
-            for (const point of referencePoints) {
-                const distance = haversineDistance(lat, lng, point.latitude, point.longitude);
-                
-                // --- LÍNEAS DE DEPURACIÓN AÑADIDAS ---
-                console.log(`--- Iniciando comparación para punto con ID: ${point.id} ---`);
-                console.log(`  Coordenadas del punto de referencia: Lat=${point.latitude}, Lng=${point.longitude}`);
-                console.log(`  Radio del punto de referencia: ${point.radius} metros`);
-                console.log(`  Coordenadas buscadas (de Google): Lat=${lat.toFixed(6)}, Lng=${lng.toFixed(6)}`);
-                console.log(`  Distancia calculada (Haversine): ${distance.toFixed(2)} metros`);
-                console.log(`  ¿Distancia (${distance.toFixed(2)}m) <= Radio (${point.radius}m)? ${distance <= point.radius}`);
-                console.log(`----------------------------------------------------------------`);
-                // ------------------------------------
-
-                if (distance <= point.radius) {
-                    isWithinAnyRadius = true;
-                    matched.push({
-                        id: point.id,
-                        distance: Math.round(distance), // Distancia redondeada a metros
-                        radius: point.radius
-                    });
-                }
-            }
-
-            // Mostrar el resultado de la coincidencia
-            isWithinRadiusSpan.textContent = isWithinAnyRadius ? "Sí" : "No";
-
-            // Mostrar los puntos coincidentes en la lista
-            matchedPointsList.innerHTML = ''; // Limpiar la lista anterior
-            if (matched.length > 0) {
-                matched.forEach(match => {
-                    const listItem = document.createElement('li');
-                    listItem.textContent = `ID: ${match.id}, Distancia: ${match.distance} m (Radio: ${match.radius} m)`;
-                    matchedPointsList.appendChild(listItem);
-                });
+                // Mostrar un mensaje en la UI si no hay puntos cargados
+                matchedPointsList.innerHTML = "<li>No hay puntos de referencia cargados para comparar.</li>";
             } else {
-                const listItem = document.createElement('li');
-                listItem.textContent = "Ningún punto de referencia coincide.";
-                matchedPointsList.appendChild(listItem);
-            }
+                for (const point of referencePoints) {
+                    // --- CAMBIO CLAVE AQUÍ: Acceso correcto a latitud, longitud y radio ---
+                    // Tus puntos tienen la estructura { zoneType, shapeType, data: { center: { lat, lng }, radius } }
+                    const pointLat = point.data.center.lat;
+                    const pointLng = point.data.center.lng;
+                    const pointRadius = point.data.radius; // El radio también está anidado
+
+                    const distance = haversineDistance(lat, lng, pointLat, pointLng);
+                    
+                    // --- LÍNEAS DE DEPURACIÓN AÑADIDAS ---
+                    // Usa un ID si existe, o un valor por defecto si no para el log
+                    console.log(`--- Iniciando comparación para punto (ID si existe): ${point.id || 'N/A'} ---`); 
+                    console.log(`  Coordenadas del punto de referencia: Lat=${pointLat}, Lng=${pointLng}`);
+                    console.log(`  Radio del punto de referencia: ${pointRadius} metros`);
+                    console.log(`  Coordenadas buscadas (de Google): Lat=${lat.toFixed(6)}, Lng=${lng.toFixed(6)}`);
+                    console.log(`  Distancia calculada (Haversine): ${distance.toFixed(2)} metros`);
+                    console.log(`  ¿Distancia (${distance.toFixed(2)}m) <= Radio (${pointRadius}m)? ${distance <= pointRadius}`);
+                    console.log(`----------------------------------------------------------------`);
+                    // ------------------------------------
+
+                    if (distance <= pointRadius) {
+                        isWithinAnyRadius = true;
+                        matched.push({
+                            id: point.id || 'N/A', // Usará 'N/A' si la propiedad 'id' no está definida en tu JSON de punto
+                            distance: Math.round(distance), // Distancia redondeada a metros
+                            radius: pointRadius
+                        });
+                    }
+                }
+
+                // Mostrar el resultado de la coincidencia
+                isWithinRadiusSpan.textContent = isWithinAnyRadius ? "Sí" : "No";
+
+                // Mostrar los puntos coincidentes en la lista
+                matchedPointsList.innerHTML = ''; // Limpiar la lista anterior
+                if (matched.length > 0) {
+                    matched.forEach(match => {
+                        const listItem = document.createElement('li');
+                        listItem.textContent = `ID: ${match.id}, Distancia: ${match.distance} m (Radio: ${match.radius} m)`;
+                        matchedPointsList.appendChild(listItem);
+                    });
+                } else {
+                    const listItem = document.createElement('li');
+                    listItem.textContent = "Ningún punto de referencia coincide.";
+                    matchedPointsList.appendChild(listItem);
+                }
+            } // Fin del else (si referencePoints.length > 0)
 
         } catch (error) {
             console.error("Error en la solicitud o el procesamiento:", error);
@@ -161,5 +182,5 @@ document.addEventListener('DOMContentLoaded', () => {
     searchButton.addEventListener('click', geocodeAndCompare);
 
     // Cargar los puntos de referencia cuando la página se carga por completo
-    loadReferencePoints(); 
+    loadReferencePoints(); // Esta función ahora espera que points.json sea directamente un array de objetos.
 });
